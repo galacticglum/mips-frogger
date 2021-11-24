@@ -26,7 +26,7 @@ wait_frame:
 	jr $ra		
 clear_screen:
 	lw $t8, base_display_addr		# $t8 stores current_display_addr
-	li $t9, 000f0000			# $t9 stores the black colour code
+	li $t9, 0x000000			# $t9 stores the black colour code
 clear_loop:
 	bge $t8, $t1, clear_return		# branch (current_display_addr >= max_display_addr)
 						# otherwise, current_display_addr < max_display_addr
