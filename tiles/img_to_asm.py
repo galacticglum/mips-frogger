@@ -42,11 +42,11 @@ if __name__ == '__main__':
             k = int(math.log2(args.screen_width / args.unit_width))
             code += f'\tsll $a0, $a0, 2  # multiply $a0 by 4\n'
             code += f'\tsll $a1, $a1, {k + 2} # multiply $a1 by 4 * {int(math.pow(2, k))}\n'
-            #code += f'\tadd $t0, $a0, $a1\n'
-            #code += f'\tadd $t0, $t0, {hex(args.base_display_addr)}\n'
-            code += f'\tla $t0, write_buffer\n'
-            code += f'\tadd $t0, $t0, $a0\n'
-            code += f'\tadd $t0, $t0, $a1\n'
+            code += f'\tadd $t0, $a0, $a1\n'
+            code += f'\tadd $t0, $t0, {hex(args.base_display_addr)}\n'
+            # code += f'\tla $t0, write_buffer\n'
+            # code += f'\tadd $t0, $t0, $a0\n'
+            # code += f'\tadd $t0, $t0, $a1\n'
 
             # map pixel colours to positions in the display
             pixels_by_colour = {}
