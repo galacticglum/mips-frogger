@@ -13,8 +13,10 @@
 	# At the end of the frame, this buffer is copied to the screen_buffer for display
 	#write_buffer: .space 262144
 	# Frog position, in pixels
-	frog_x: .word 120
-	frog_y: .word 224
+	starting_frog_x: .word 120
+	starting_frog_y: .word 224
+	frog_x: .word 0
+	frog_y: .word 0
 	frog_width: .word 16
 	################
 	# OBJECTS
@@ -23,7 +25,7 @@
 	n_turtle_rows: .word 2
 	turtle_x_positions: .word 0, 0
 	turtle_y_positions: .word 64, 112
-	turtle_speeds: .word -2, -5
+	turtle_speeds: .word -2, -4
 	# Logs
 	n_log_rows: .word 3
 	log_x_positions: .word 128, 6, 0
@@ -34,21 +36,19 @@
 	car_x_positions: .word 0, 64, 128, 128, 0
 	car_y_positions: .word 144, 160, 176, 192, 208
 	car_speeds: .word -8, 4, -5, 6, 3
-	
-	# starting x positions of the cars
-	car_rows_starting_x: .word 
-		0, 128,        # Row 1
-		0,             # Row 2
-		56, 120, 184,  # Row 3
-		0, 64, 128,    # Row 4
-		32, 104, 176,  # Row 5
-	# number of cars in each row
-	car_row_sizes: 2, 1, 3, 3, 3
-		
 	# width of cars in each row
 	car_widths: .word 32, 16, 16, 16, 16
+	################
+	# STATE
+	################
+	moved_this_frame: .word 0
 .text
 init:
+	lw $v0, starting_frog_x
+	lw $v1, starting_frog_y
+	sw $v0, frog_x
+	sw $v1, frog_y
+	
 	# Reset screen on first frame
 	li $a0, 0
 	li $a1, 65792
@@ -61,33 +61,6 @@ init:
 	li $a2, 128
 	li $a3, 0x000042
 	jal draw_rect
-main:
-check_for_keypress:
-	# Poll for keypress event
-	lw $t8, 0xffff0000
-	beq $t8, 1, on_keyboard_input
-	j after_check_for_keypress
-on_keyboard_input:
-	lw $t0, 0xffff0004
-	beq $t0, 0x77, respond_to_up_key
-	beq $t0, 0x73, respond_to_down_key
-	beq $t0, 0x61, respond_to_left_key
-	beq $t0, 0x64, respond_to_right_key
-	j after_check_for_keypress
-respond_to_up_key:
-	jal move_up
-	j after_check_for_keypress
-respond_to_down_key:
-	jal move_down
-	j after_check_for_keypress
-respond_to_left_key:
-	jal move_left
-	j after_check_for_keypress
-respond_to_right_key:
-	jal move_right
-	j after_check_for_keypress
-after_check_for_keypress:
-	j draw_safe_area_loop_init
 draw_safe_area_loop_init:
 	li $s0, 0
 draw_safe_area_loop_body:
@@ -179,7 +152,7 @@ _draw_goal_region_loop_1:
 _draw_goal_region_loop_2_init:
 	li $s0, 32
 _draw_goal_region_loop_2:
-	bge $s0, 224, _draw_goal_region_loop_end
+	bge $s0, 224, main
 	
 	addi $a0, $s0, 0
 	li $a1, 24
@@ -213,7 +186,32 @@ _draw_goal_region_loop_2:
 	
 	addi $s0, $s0, 56
 	j _draw_goal_region_loop_2
-_draw_goal_region_loop_end:
+main:
+check_for_keypress:
+	# Poll for keypress event
+	lw $t8, 0xffff0000
+	beq $t8, 1, on_keyboard_input
+	j after_check_for_keypress
+on_keyboard_input:
+	lw $t0, 0xffff0004
+	beq $t0, 0x77, respond_to_up_key
+	beq $t0, 0x73, respond_to_down_key
+	beq $t0, 0x61, respond_to_left_key
+	beq $t0, 0x64, respond_to_right_key
+	j after_check_for_keypress
+respond_to_up_key:
+	jal move_up
+	j after_check_for_keypress
+respond_to_down_key:
+	jal move_down
+	j after_check_for_keypress
+respond_to_left_key:
+	jal move_left
+	j after_check_for_keypress
+respond_to_right_key:
+	jal move_right
+	j after_check_for_keypress
+after_check_for_keypress:
 _draw_turtles:
 	la $t8, turtle_x_positions
 	la $t9, turtle_y_positions
@@ -888,12 +886,18 @@ _done_update_frog_position:
 	sw $t8, frog_x
 	sw $t9, frog_y
 	jal check_collisions_car
-_flip_buffers:
-	# Copy data from write_buffer to $gp
-
 wait:	
+	li $v0, 32				# load 32 into $v0 to specify that we want the sleep syscall
+	li $a0, 16				# load 17 millisconds as argument to sleep function (into $a0)
+	syscall					# Execute sleep function call
 	# repeat
+	lw $v0, moved_this_frame
+	beq $v0, 1, redraw_all
 	j main
+redraw_all:
+	li $v0, 0
+	sw $v0, moved_this_frame
+	j draw_safe_area_loop_init
 	
 move_up:
 	lw $t8, frog_x
@@ -912,6 +916,9 @@ move_up:
 	bge $t9, 24, _move_up_return
 	li $t9, 24
 _move_up_return:
+	li $v0, 1
+	sw $v0, moved_this_frame
+	
 	sw $t9, frog_y
 	jr $ra	
 
@@ -932,6 +939,9 @@ move_down:
 	ble $t9, 224, _move_down_return
 	li $t9, 224
 _move_down_return:
+	li $v0, 1
+	sw $v0, moved_this_frame
+	
 	sw $t9, frog_y
 	jr $ra
 	
@@ -952,6 +962,9 @@ move_left:
 	bge $t8, 0, _move_left_return
 	li $t8, 0
 _move_left_return:
+	li $v0, 1
+	sw $v0, moved_this_frame
+	
 	sw $t8, frog_x
 	jr $ra
 	
@@ -972,6 +985,9 @@ move_right:
 	ble $t8, 240, _move_right_return
 	li $t8, 240
 _move_right_return:
+	li $v0, 1
+	sw $v0, moved_this_frame
+	
 	sw $t8, frog_x
 	jr $ra
 	
@@ -984,7 +1000,7 @@ check_collisions_car:
 	lw $t0, frog_x # left x coordinate of frog (frog_x1)
 	lw $t1, frog_x
 	lw $s7, frog_width
-	add $t1, $t0, $s5 # right x coordinate of frog (frog_x2)
+	add $t1, $t0, $s7 # right x coordinate of frog (frog_x2)
 	
 	###################################################################################
 	# VARIABLE MAP:
@@ -1027,13 +1043,20 @@ _car_1_1_right:
 	# car_x1 <= frog_x2 <= car_x2
 	j _has_collision_with_car
 _has_collision_with_car:
-	li $a0, 888 #integer to be printed
-	li $v0, 1 #system call code 1: print_int
-	syscall
-	addi $a0, $0, 0xa #ascii code for LF, if you have any trouble try 0xD for CR.
-        addi $v0, $0, 0xB #syscall 11 prints the lower 8 bits of $a0 as an ascii character.
-        syscall
-        
+	lw $v0, starting_frog_x
+	lw $v1, starting_frog_y
+	sw $v0, frog_x
+	sw $v1, frog_y
+	# clear region at current position
+	sll $a0, $t2, 8 # multiply by 256
+	add $a0, $a0, $t0 # add frog_x
+	li $a1, 16 # width
+	li $a2, 16 # height
+	li $a3, 0x000000 # colour
+	move $s0, $ra
+	jal draw_rect
+	move $ra, $s0
+	
 	j _check_collisions_car_done
 _check_collisions_car_done:
 	jr $ra
