@@ -1219,7 +1219,7 @@ _car_3_3_right:
 _check_cars_row_2:
 	lw $t5, 4($s3) # car y 
 	beq $t2, $t5, _car_1_2  # frog_y == car_y
-	j _check_collisions_car_done
+	j _check_cars_row_1
 _car_1_2:
 	# car 1,2
 	lw $t3, 4($s2) # left x coordinate of car (car_x1)
@@ -1236,8 +1236,57 @@ _car_1_2_left:
 	j _has_collision_with_car
 _car_1_2_right:
 	# check right
-	bgt $t3, $t1, _check_collisions_car_done # car_x1 > frog_x2
-	bgt $t1, $t4, _check_collisions_car_done # frog_x2 > car_x2
+	bgt $t3, $t1, _check_cars_row_1 # car_x1 > frog_x2
+	bgt $t1, $t4, _check_cars_row_1 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+# row 1
+_check_cars_row_1:
+	lw $t5, 0($s3) # car y 
+	beq $t2, $t5, _car_1_1  # frog_y == car_y
+	j _check_collisions_car_done
+_car_1_1:
+	# car 1,1
+	lw $t3, 0($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 0  # car 1,1 starts at x=0
+	addi $t3, $t3, 256
+	rem $t3, $t3, 256
+	lw $s7, 0($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	addi $t4, $t4, 256
+	rem $t4, $t4, 256
+_car_1_1_left:
+	# check left
+	bgt $t3, $t0, _car_1_1_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_1_1_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_1_1_right:
+	# check right
+	bgt $t3, $t1, _car_2_1 # car_x1 > frog_x2
+	bgt $t1, $t4, _car_2_1 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+_car_2_1:
+	# car 2,1
+	lw $t3, 0($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 128  # car 2,1 starts at x=128
+	addi $t3, $t3, 256
+	rem $t3, $t3, 256
+	lw $s7, 0($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	addi $t4, $t4, 256
+	rem $t4, $t4, 256
+_car_2_1_left:
+	# check left
+	bgt $t3, $t0, _check_collisions_car_done # car_x1 > frog_x1
+	bgt $t0, $t4, _check_collisions_car_done # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_2_1_right:
+	# check right
+	bgt $t3, $t1, _car_3_3 # car_x1 > frog_x2
+	bgt $t1, $t4, _car_3_3 # frog_x2 > car_x2
 	# car_x1 <= frog_x2 <= car_x2
 	j _has_collision_with_car
 _has_collision_with_car:
