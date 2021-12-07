@@ -1017,11 +1017,11 @@ check_collisions_car:
 	# car_widths: 		$s4
 	###################################################################################
         
-	# row 1
+	# row 5
 	lw $t5, 16($s3) # car y
-	beq $t2, $t5, _check_cars_row_1  # frog_y == car_y
-	j _check_collisions_car_done
-_check_cars_row_1:
+	beq $t2, $t5, _check_cars_row_5  # frog_y == car_y
+	j _check_cars_row_4
+_check_cars_row_5:
 _car_1_5:
 	# car 1,5
 	lw $t3, 16($s2) # left x coordinate of car (car_x1)
@@ -1030,13 +1030,211 @@ _car_1_5:
 	lw $s7, 16($s4) # car width
 	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
 	rem $t4, $t4, 256
-_car_1_1_left:
+_car_1_5_left:
 	# check left
-	bgt $t3, $t0, _car_1_1_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_1_1_right # frog_x1 > car_x2
+	bgt $t3, $t0, _car_1_5_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_1_5_right # frog_x1 > car_x2
 	# car_x1 <= frog_x1 <= car_x2
 	j _has_collision_with_car
-_car_1_1_right:
+_car_1_5_right:
+	# check right
+	bgt $t3, $t1, _car_2_5 # car_x1 > frog_x2
+	bgt $t1, $t4, _car_2_5 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+_car_2_5:
+	# car 2,5
+	lw $t3, 16($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 104  # car 2,5 starts at x=104
+	rem $t3, $t3, 256
+	lw $s7, 16($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	rem $t4, $t4, 256
+_car_2_5_left:
+	# check left
+	bgt $t3, $t0, _car_2_5_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_2_5_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_2_5_right:
+	# check right
+	bgt $t3, $t1, _car_3_5 # car_x1 > frog_x2
+	bgt $t1, $t4, _car_3_5 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+_car_3_5:
+	# car 3,5
+	lw $t3, 16($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 176  # car 3,5 starts at x=176
+	rem $t3, $t3, 256
+	lw $s7, 16($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	rem $t4, $t4, 256
+_car_3_5_left:
+	# check left
+	bgt $t3, $t0, _car_3_5_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_3_5_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_3_5_right:
+	# check right
+	bgt $t3, $t1, _check_cars_row_4 # car_x1 > frog_x2
+	bgt $t1, $t4, _check_cars_row_4 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+# row 4
+_check_cars_row_4:
+	lw $t5, 12($s3) # car y
+	beq $t2, $t5, _car_1_4  # frog_y == car_y
+	j _check_cars_row_3
+_car_1_4:
+	# car 1,4
+	lw $t3, 12($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 0  # car 1,4 starts at x=0
+	rem $t3, $t3, 256
+	lw $s7, 12($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	rem $t4, $t4, 256
+_car_1_4_left:
+	# check left
+	bgt $t3, $t0, _car_1_4_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_1_4_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_1_4_right:
+	# check right
+	bgt $t3, $t1, _car_2_4 # car_x1 > frog_x2
+	bgt $t1, $t4, _car_2_4 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+_car_2_4:
+	# car 2,4
+	lw $t3, 12($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 64  # car 2,4 starts at x=64
+	rem $t3, $t3, 256
+	lw $s7, 12($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	rem $t4, $t4, 256
+_car_2_4_left:
+	# check left
+	bgt $t3, $t0, _car_2_4_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_2_4_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_2_4_right:
+	# check right
+	bgt $t3, $t1, _car_3_4 # car_x1 > frog_x2
+	bgt $t1, $t4, _car_3_4 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+_car_3_4:
+	# car 3,4
+	lw $t3, 12($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 128  # car 3,4 starts at x=128
+	rem $t3, $t3, 256
+	lw $s7, 12($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	rem $t4, $t4, 256
+_car_3_4_left:
+	# check left
+	bgt $t3, $t0, _car_3_4_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_3_4_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_3_4_right:
+	# check right
+	bgt $t3, $t1, _check_cars_row_3 # car_x1 > frog_x2
+	bgt $t1, $t4, _check_cars_row_3 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+# row 3
+_check_cars_row_3:
+	lw $t5, 8($s3) # car y 
+	beq $t2, $t5, _car_1_3  # frog_y == car_y
+	j _check_cars_row_2
+_car_1_3:
+	# car 1,3
+	lw $t3, 8($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 56  # car 1,3 starts at x=56
+	addi $t3, $t3, 256
+	rem $t3, $t3, 256
+	lw $s7, 8($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	addi $t4, $t4, 256
+	rem $t4, $t4, 256
+_car_1_3_left:
+	# check left
+	bgt $t3, $t0, _car_1_3_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_1_3_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_1_3_right:
+	# check right
+	bgt $t3, $t1, _car_2_3 # car_x1 > frog_x2
+	bgt $t1, $t4, _car_2_3 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+_car_2_3:
+	# car 2,3
+	lw $t3, 8($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 120  # car 2,3 starts at x=120
+	addi $t3, $t3, 256
+	rem $t3, $t3, 256
+	lw $s7, 8($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	addi $t4, $t4, 256
+	rem $t4, $t4, 256
+_car_2_3_left:
+	# check left
+	bgt $t3, $t0, _car_2_3_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_2_3_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_2_3_right:
+	# check right
+	bgt $t3, $t1, _car_3_3 # car_x1 > frog_x2
+	bgt $t1, $t4, _car_3_3 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+_car_3_3:
+	# car 3,3
+	lw $t3, 8($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 184  # car 3,3 starts at x=184
+	rem $t3, $t3, 256
+	lw $s7, 8($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	rem $t4, $t4, 256
+_car_3_3_left:
+	# check left
+	bgt $t3, $t0, _car_3_3_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_3_3_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_3_3_right:
+	# check right
+	bgt $t3, $t1, _check_cars_row_2 # car_x1 > frog_x2
+	bgt $t1, $t4, _check_cars_row_2 # frog_x2 > car_x2
+	# car_x1 <= frog_x2 <= car_x2
+	j _has_collision_with_car
+_check_cars_row_2:
+	lw $t5, 4($s3) # car y 
+	beq $t2, $t5, _car_1_2  # frog_y == car_y
+	j _check_collisions_car_done
+_car_1_2:
+	# car 1,2
+	lw $t3, 4($s2) # left x coordinate of car (car_x1)
+	add $t3, $t3, 0  # car 1,2 starts at x=0
+	rem $t3, $t3, 256
+	lw $s7, 4($s4) # car width
+	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
+	rem $t4, $t4, 256
+_car_1_2_left:
+	# check left
+	bgt $t3, $t0, _car_1_2_right # car_x1 > frog_x1
+	bgt $t0, $t4, _car_1_2_right # frog_x1 > car_x2
+	# car_x1 <= frog_x1 <= car_x2
+	j _has_collision_with_car
+_car_1_2_right:
 	# check right
 	bgt $t3, $t1, _check_collisions_car_done # car_x1 > frog_x2
 	bgt $t1, $t4, _check_collisions_car_done # frog_x2 > car_x2
