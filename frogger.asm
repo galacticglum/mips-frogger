@@ -797,11 +797,6 @@ _draw_cars:
 	addi $a0, $s0, 176
 	addi $a1, $s1, 0
 	jal draw_sprite_car1
-_draw_player:
-	# draw player
-	lw $a0, frog_x
-	lw $a1, frog_y
-	jal draw_sprite_frog
 _update:
 _update_turtle_positions:
 	# Update turtle positions
@@ -917,7 +912,12 @@ _update_frog_position_log_loop_end:
 _done_update_frog_position:	
 	sw $t8, frog_x
 	sw $t9, frog_y
-	jal check_collisions_car
+	jal check_collisions
+_draw_player:
+	# draw player
+	lw $a0, frog_x
+	lw $a1, frog_y
+	jal draw_sprite_frog
 wait:	
 	li $v0, 32				# load 32 into $v0 to specify that we want the sleep syscall
 	li $a0, 16				# load 17 millisconds as argument to sleep function (into $a0)
@@ -1080,6 +1080,126 @@ _move_right_return:
 	
 	sw $t8, frog_x
 	jr $ra
+	
+check_collisions:
+	# if 48  <= frog_y <= 112: player is colliding with water iff every pixel under the player is BLUE
+	# if 144 <= frog_y <= 208: player is colliding with car iff there exists a pixel under the player that is NOT black
+	lw $s0, frog_x
+	lw $s1, frog_y
+	lw $s2, frog_width
+_check_collisions_with_car_section:
+	blt $s1, 144, _check_collisions_with_water_section # frog_y < 144
+	bgt $s1, 208, _check_collisions_return # frog_y > 208
+	# check if there exists a pixel under the player that is NOT black
+	# args: start_idx ($a0), width ($a1), height ($a2)
+	move $t2, $s1
+	sll $t2, $t2, 8 # multiply by 256
+	add $t2, $t2, $s0
+	sll $t2, $t2, 2 # multiply by 4
+	add $t2, $t2, $gp
+	li $t0, 0 # y value
+_ccwc_outer_loop:
+	bge $t0, 16, _ccwc_outer_loop_done
+	li $t1, 0 # x value
+	move $t3, $t2
+_ccwc_inner_loop:
+	bge $t1, $s2, _ccwc_inner_loop_done
+	lw $t5, 0($t3)
+	beq $t5, 0x000000, _increment_ccwc
+	beq $t5, 0x21de00, _increment_ccwc
+	beq $t5, 0xffff00, _increment_ccwc
+	beq $t5, 0xff00f7, _increment_ccwc
+	j _has_collision
+_increment_ccwc:
+	# increment
+	addi $t1, $t1, 1
+	addi $t3, $t3, 4
+	j _ccwc_inner_loop
+_ccwc_inner_loop_done:
+	# increment
+	addi $t0, $t0, 1
+	addi $t2, $t2, 1024
+	j _ccwc_outer_loop
+_ccwc_outer_loop_done:
+	j _check_collisions_return
+_check_collisions_with_water_section:
+	lw $s0, frog_x
+	addi $s0, $s0, 4
+	lw $s1, frog_y
+	lw $s2, frog_width
+	subi $s2, $s2, 4
+        
+	blt $s1, 48, _check_collisions_return # frog_y < 48
+	bgt $s1, 112, _check_collisions_return # frog_y > 112
+	# check if there exists a pixel under the player that is NOT black
+	# args: start_idx ($a0), width ($a1), height ($a2)
+	move $t2, $s1
+	sll $t2, $t2, 8 # multiply by 256
+	add $t2, $t2, $s0
+	sll $t2, $t2, 2 # multiply by 4
+	add $t2, $t2, $gp
+	li $t0, 0 # y value
+_ccww_outer_loop:
+	bge $t0, 16, _ccww_outer_loop_done
+	li $t1, 0 # x value
+	move $t3, $t2
+_ccww_inner_loop:
+	bge $t1, $s2, _ccww_inner_loop_done
+	lw $t5, 0($t3)
+	beq $t5, 0x21de00, _increment_ccww
+	beq $t5, 0xffff00, _increment_ccww
+	beq $t5, 0xff00f7, _increment_ccww
+	addi $a0, $t5, 0 #ascii code for LF, if you have any trouble try 0xD for CR.
+        addi $v0, $0, 1 #system call code 1: print_int
+        syscall
+        addi $a0, $0, 0xa #ascii code for LF, if you have any trouble try 0xD for CR.
+        addi $v0, $0, 0xB #syscall 11 prints the lower 8 bits of $a0 as an ascii character.
+        syscall
+	beq $t5, 0x000000, _increment_ccww
+	beq $t5, 0x000042, _increment_ccww # water colour 1
+	beq $t5, 0x000047, _increment_ccww # water colour 2
+	j _check_collisions_return
+_increment_ccww:
+	# increment
+	addi $t1, $t1, 1
+	addi $t3, $t3, 4
+	j _ccww_inner_loop
+_ccww_inner_loop_done:
+	# increment
+	addi $t0, $t0, 1
+	addi $t2, $t2, 1024
+	j _ccww_outer_loop
+_ccww_outer_loop_done:
+	j _has_collision
+_has_collision:
+	lw $v0, starting_frog_x
+	lw $v1, starting_frog_y
+	sw $v0, frog_x
+	sw $v1, frog_y
+	# clear region at current position
+	sll $a0, $s1, 8 # multiply by 256
+	add $a0, $a0, $s0 # add frog_x
+	li $a1, 16 # width
+	li $a2, 16 # height
+	li $a3, 0x000000 # colour
+	move $s0, $ra
+	jal draw_rect
+	move $ra, $s0
+	# decrease nummber of lives
+	lw $v0, num_lives
+	addi $v0, $v0, -1
+	sw $v0, num_lives
+	# play sound
+	li $v0, 31  
+	li $a0, 50
+	li $a1, 100
+	li $a2, 81
+	li $a3, 50
+	syscall 
+	j _check_collisions_return
+_check_collisions_return:
+	jr $ra
+	
 	
 check_collisions_car:
 	lw $t2, frog_y
