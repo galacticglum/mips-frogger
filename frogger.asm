@@ -1,9 +1,28 @@
+#####################################################################
+#
+# CSC258H5S Fall 2021 Assembly Final Project
+# University of Toronto, St. George
+#
+# Student: Shon Verch, 1006758796
+#
 # Bitmap Display Configuration:
-# - Unit width in pixels: 1
-# - Unit height in pixels: 1
-# - Display width in pixels: 256
-# - Display height in pixels: 256
+# - Unit width in pixels: 2
+# - Unit height in pixels: 2
+# - Display width in pixels: 512
+# - Display height in pixels: 512
 # - Base Address for Display: 0x10008000 ($gp)
+#
+# Which milestone is reached in this submission?
+# - Milestone 5
+#
+# Which approved additional features have been implemented?
+# (See the assignment handout for the list of additional features)
+# 1. [EASY] - Display the number of lives remaining 
+# 2. [EASY] - After final player death, display game over/retry screen. Restart the game if "retry" option is chosen.
+# 3. [EASY] - Make objects (frogs, logs, turtles, vehicles, etc.) look more like the arcade version.
+# 4. [EASY] - Have objects in different rows move at different speed.
+# 5. [EASY] - Add a third row in each of the water and road sections.
+# 6. [HARD] - Add sound effects for movement, collisions, game end, and reaching the goal area.
 #
 .data
 	# Reserve the next 262144 bytes (e.g. 256 * 256 = 65536) for the bitmap data.
@@ -1082,6 +1101,7 @@ _move_right_return:
 	jr $ra
 	
 check_collisions:
+	#           frog_y <  48 player is colliding with goal selection iff there exists a pixel that is BLUE
 	# if 48  <= frog_y <= 112: player is colliding with water iff every pixel under the player is BLUE
 	# if 144 <= frog_y <= 208: player is colliding with car iff there exists a pixel under the player that is NOT black
 	lw $s0, frog_x
@@ -1090,7 +1110,7 @@ check_collisions:
 _check_collisions_with_car_section:
 	blt $s1, 144, _check_collisions_with_water_section # frog_y < 144
 	bgt $s1, 208, _check_collisions_return # frog_y > 208
-	# check if there exists a pixel under the player that is NOT black
+	# check if every pixel under the player is BLUE
 	# args: start_idx ($a0), width ($a1), height ($a2)
 	move $t2, $s1
 	sll $t2, $t2, 8 # multiply by 256
@@ -1109,7 +1129,7 @@ _ccwc_inner_loop:
 	beq $t5, 0x21de00, _increment_ccwc
 	beq $t5, 0xffff00, _increment_ccwc
 	beq $t5, 0xff00f7, _increment_ccwc
-	j _has_collision
+	j _has_collision_car
 _increment_ccwc:
 	# increment
 	addi $t1, $t1, 1
@@ -1129,7 +1149,7 @@ _check_collisions_with_water_section:
 	lw $s2, frog_width
 	subi $s2, $s2, 4
         
-	blt $s1, 48, _check_collisions_return # frog_y < 48
+	blt $s1, 48, _check_collisions_with_goal_section # frog_y < 48
 	bgt $s1, 112, _check_collisions_return # frog_y > 112
 	# check if there exists a pixel under the player that is NOT black
 	# args: start_idx ($a0), width ($a1), height ($a2)
@@ -1149,16 +1169,11 @@ _ccww_inner_loop:
 	beq $t5, 0x21de00, _increment_ccww
 	beq $t5, 0xffff00, _increment_ccww
 	beq $t5, 0xff00f7, _increment_ccww
-	addi $a0, $t5, 0 #ascii code for LF, if you have any trouble try 0xD for CR.
-        addi $v0, $0, 1 #system call code 1: print_int
-        syscall
-        addi $a0, $0, 0xa #ascii code for LF, if you have any trouble try 0xD for CR.
-        addi $v0, $0, 0xB #syscall 11 prints the lower 8 bits of $a0 as an ascii character.
-        syscall
+
 	beq $t5, 0x000000, _increment_ccww
 	beq $t5, 0x000042, _increment_ccww # water colour 1
 	beq $t5, 0x000047, _increment_ccww # water colour 2
-	j _check_collisions_return
+	j _check_collisions_with_goal_section
 _increment_ccww:
 	# increment
 	addi $t1, $t1, 1
@@ -1170,8 +1185,51 @@ _ccww_inner_loop_done:
 	addi $t2, $t2, 1024
 	j _ccww_outer_loop
 _ccww_outer_loop_done:
-	j _has_collision
-_has_collision:
+	j _has_collision_water
+_check_collisions_with_goal_section:
+	lw $s0, frog_x
+	addi $s0, $s0, 4
+	lw $s1, frog_y
+	lw $s2, frog_width
+	subi $s2, $s2, 4
+	
+	bge $s1, 48, _check_collisions_return # frog_y >= 48
+	# check if every pixel under the player is BLUE
+	# args: start_idx ($a0), width ($a1), height ($a2)
+	move $t2, $s1
+	sll $t2, $t2, 8 # multiply by 256
+	add $t2, $t2, $s0
+	sll $t2, $t2, 2 # multiply by 4
+	add $t2, $t2, $gp
+	li $t0, 0 # y value
+_ccwg_outer_loop:
+	bge $t0, 16, _ccwg_outer_loop_done
+	li $t1, 0 # x value
+	move $t3, $t2
+_ccwg_inner_loop:
+	bge $t1, $s2, _ccwg_inner_loop_done
+	lw $t5, 0($t3)
+	beq $t5, 0x21de00, _increment_ccwg
+	beq $t5, 0xffff00, _increment_ccwg
+	beq $t5, 0xff00f7, _increment_ccwg
+
+	beq $t5, 0x000000, _increment_ccwg
+	beq $t5, 0x000042, _increment_ccwg # water colour 1
+	beq $t5, 0x000047, _increment_ccwg # water colour 2
+	j _has_collision_water
+_increment_ccwg:
+	# increment
+	addi $t1, $t1, 1
+	addi $t3, $t3, 4
+	j _ccwg_inner_loop
+_ccwg_inner_loop_done:
+	# increment
+	addi $t0, $t0, 1
+	addi $t2, $t2, 1024
+	j _ccwg_outer_loop
+_ccwg_outer_loop_done:
+	j _has_collision_goal
+_has_collision_car:
 	lw $v0, starting_frog_x
 	lw $v1, starting_frog_y
 	sw $v0, frog_x
@@ -1189,6 +1247,59 @@ _has_collision:
 	lw $v0, num_lives
 	addi $v0, $v0, -1
 	sw $v0, num_lives
+	j _has_collision_common
+_has_collision_water:
+	lw $v0, starting_frog_x
+	lw $v1, starting_frog_y
+	sw $v0, frog_x
+	sw $v1, frog_y
+	# clear region at current position
+	sll $a0, $s1, 8 # multiply by 256
+	add $a0, $a0, $s0 # add frog_x
+	li $a1, 16 # width
+	li $a2, 16 # height
+	li $a3, 0x000042 # colour
+	move $s0, $ra
+	jal draw_rect
+	move $ra, $s0
+	# decrease nummber of lives
+	lw $v0, num_lives
+	addi $v0, $v0, -1
+	sw $v0, num_lives
+	j _has_collision_common
+_has_collision_goal:
+	lw $t8, frog_x
+	lw $t9, frog_y
+	
+	lw $v0, starting_frog_x
+	lw $v1, starting_frog_y
+	sw $v0, frog_x
+	sw $v1, frog_y
+	# clear region at current position
+	sll $a0, $s1, 8 # multiply by 256
+	add $a0, $a0, $s0 # add frog_x
+	li $a1, 16 # width
+	li $a2, 16 # height
+	#li $a3, 0x000042 # colour
+	li $a3, 0x000042
+	move $s0, $ra
+	#jal draw_rect
+	move $ra, $s0
+	# draw goal region	
+	move $a0, $t8
+	move $a1, $t9
+	move $s0, $ra
+	jal draw_sprite_goal_region
+	move $ra, $s0
+	# play sound
+	li $v0, 31  
+	li $a0, 70
+	li $a1, 100
+	li $a2, 99
+	li $a3, 50
+	syscall 
+	j _check_collisions_return
+_has_collision_common:
 	# play sound
 	li $v0, 31  
 	li $a0, 50
@@ -1199,337 +1310,7 @@ _has_collision:
 	j _check_collisions_return
 _check_collisions_return:
 	jr $ra
-	
-	
-check_collisions_car:
-	lw $t2, frog_y
-	la $s2, car_x_positions
-	la $s3, car_y_positions
-	la $s4, car_widths
-	
-	lw $t0, frog_x # left x coordinate of frog (frog_x1)
-	lw $t1, frog_x
-	lw $s7, frog_width
-	add $t1, $t0, $s7 # right x coordinate of frog (frog_x2)
-	
-	###################################################################################
-	# VARIABLE MAP:
-	# frog_x1: 		$t0		(left x-coordinate of frog)
-	# frog_x2: 		$t1		(right x-coordinate of frog)
-	# frog_y:  		$t2
-	# 
-	# car_x1:  		$t3		(left x-coordinate of current car)
-	# car_x2:  		$t4		(right x-coordinate of current car)
-	# car_y:   		$t5
-	
-	# car_x_positions: 	$s2
-	# car_y_positions: 	$s3
-	# car_widths: 		$s4
-	###################################################################################
-        
-	# row 5
-	lw $t5, 16($s3) # car y
-	beq $t2, $t5, _check_cars_row_5  # frog_y == car_y
-	j _check_cars_row_4
-_check_cars_row_5:
-_car_1_5:
-	# car 1,5
-	lw $t3, 16($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 32  # car 1,5 starts at x=32
-	rem $t3, $t3, 256
-	lw $s7, 16($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	rem $t4, $t4, 256
-_car_1_5_left:
-	# check left
-	bgt $t3, $t0, _car_1_5_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_1_5_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_1_5_right:
-	# check right
-	bgt $t3, $t1, _car_2_5 # car_x1 > frog_x2
-	bgt $t1, $t4, _car_2_5 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-_car_2_5:
-	# car 2,5
-	lw $t3, 16($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 104  # car 2,5 starts at x=104
-	rem $t3, $t3, 256
-	lw $s7, 16($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	rem $t4, $t4, 256
-_car_2_5_left:
-	# check left
-	bgt $t3, $t0, _car_2_5_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_2_5_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_2_5_right:
-	# check right
-	bgt $t3, $t1, _car_3_5 # car_x1 > frog_x2
-	bgt $t1, $t4, _car_3_5 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-_car_3_5:
-	# car 3,5
-	lw $t3, 16($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 176  # car 3,5 starts at x=176
-	rem $t3, $t3, 256
-	lw $s7, 16($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	rem $t4, $t4, 256
-_car_3_5_left:
-	# check left
-	bgt $t3, $t0, _car_3_5_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_3_5_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_3_5_right:
-	# check right
-	bgt $t3, $t1, _check_cars_row_4 # car_x1 > frog_x2
-	bgt $t1, $t4, _check_cars_row_4 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-# row 4
-_check_cars_row_4:
-	lw $t5, 12($s3) # car y
-	beq $t2, $t5, _car_1_4  # frog_y == car_y
-	j _check_cars_row_3
-_car_1_4:
-	# car 1,4
-	lw $t3, 12($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 0  # car 1,4 starts at x=0
-	rem $t3, $t3, 256
-	lw $s7, 12($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	rem $t4, $t4, 256
-_car_1_4_left:
-	# check left
-	bgt $t3, $t0, _car_1_4_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_1_4_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_1_4_right:
-	# check right
-	bgt $t3, $t1, _car_2_4 # car_x1 > frog_x2
-	bgt $t1, $t4, _car_2_4 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-_car_2_4:
-	# car 2,4
-	lw $t3, 12($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 64  # car 2,4 starts at x=64
-	rem $t3, $t3, 256
-	lw $s7, 12($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	rem $t4, $t4, 256
-_car_2_4_left:
-	# check left
-	bgt $t3, $t0, _car_2_4_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_2_4_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_2_4_right:
-	# check right
-	bgt $t3, $t1, _car_3_4 # car_x1 > frog_x2
-	bgt $t1, $t4, _car_3_4 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-_car_3_4:
-	# car 3,4
-	lw $t3, 12($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 128  # car 3,4 starts at x=128
-	rem $t3, $t3, 256
-	lw $s7, 12($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	rem $t4, $t4, 256
-_car_3_4_left:
-	# check left
-	bgt $t3, $t0, _car_3_4_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_3_4_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_3_4_right:
-	# check right
-	bgt $t3, $t1, _check_cars_row_3 # car_x1 > frog_x2
-	bgt $t1, $t4, _check_cars_row_3 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-# row 3
-_check_cars_row_3:
-	lw $t5, 8($s3) # car y 
-	beq $t2, $t5, _car_1_3  # frog_y == car_y
-	j _check_cars_row_2
-_car_1_3:
-	# car 1,3
-	lw $t3, 8($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 56  # car 1,3 starts at x=56
-	addi $t3, $t3, 256
-	rem $t3, $t3, 256
-	lw $s7, 8($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	addi $t4, $t4, 256
-	rem $t4, $t4, 256
-_car_1_3_left:
-	# check left
-	bgt $t3, $t0, _car_1_3_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_1_3_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_1_3_right:
-	# check right
-	bgt $t3, $t1, _car_2_3 # car_x1 > frog_x2
-	bgt $t1, $t4, _car_2_3 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-_car_2_3:
-	# car 2,3
-	lw $t3, 8($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 120  # car 2,3 starts at x=120
-	addi $t3, $t3, 256
-	rem $t3, $t3, 256
-	lw $s7, 8($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	addi $t4, $t4, 256
-	rem $t4, $t4, 256
-_car_2_3_left:
-	# check left
-	bgt $t3, $t0, _car_2_3_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_2_3_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_2_3_right:
-	# check right
-	bgt $t3, $t1, _car_3_3 # car_x1 > frog_x2
-	bgt $t1, $t4, _car_3_3 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-_car_3_3:
-	# car 3,3
-	lw $t3, 8($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 184  # car 3,3 starts at x=184
-	rem $t3, $t3, 256
-	lw $s7, 8($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	rem $t4, $t4, 256
-_car_3_3_left:
-	# check left
-	bgt $t3, $t0, _car_3_3_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_3_3_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_3_3_right:
-	# check right
-	bgt $t3, $t1, _check_cars_row_2 # car_x1 > frog_x2
-	bgt $t1, $t4, _check_cars_row_2 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-_check_cars_row_2:
-	lw $t5, 4($s3) # car y 
-	beq $t2, $t5, _car_1_2  # frog_y == car_y
-	j _check_cars_row_1
-_car_1_2:
-	# car 1,2
-	lw $t3, 4($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 0  # car 1,2 starts at x=0
-	rem $t3, $t3, 256
-	lw $s7, 4($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	rem $t4, $t4, 256
-_car_1_2_left:
-	# check left
-	bgt $t3, $t0, _car_1_2_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_1_2_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_1_2_right:
-	# check right
-	bgt $t3, $t1, _check_cars_row_1 # car_x1 > frog_x2
-	bgt $t1, $t4, _check_cars_row_1 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-# row 1
-_check_cars_row_1:
-	lw $t5, 0($s3) # car y 
-	beq $t2, $t5, _car_1_1  # frog_y == car_y
-	j _check_collisions_car_done
-_car_1_1:
-	# car 1,1
-	lw $t3, 0($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 0  # car 1,1 starts at x=0
-	addi $t3, $t3, 256
-	rem $t3, $t3, 256
-	lw $s7, 0($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	addi $t4, $t4, 256
-	rem $t4, $t4, 256
-_car_1_1_left:
-	# check left
-	bgt $t3, $t0, _car_1_1_right # car_x1 > frog_x1
-	bgt $t0, $t4, _car_1_1_right # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_1_1_right:
-	# check right
-	bgt $t3, $t1, _car_2_1 # car_x1 > frog_x2
-	bgt $t1, $t4, _car_2_1 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-_car_2_1:
-	# car 2,1
-	lw $t3, 0($s2) # left x coordinate of car (car_x1)
-	add $t3, $t3, 128  # car 2,1 starts at x=128
-	addi $t3, $t3, 256
-	rem $t3, $t3, 256
-	lw $s7, 0($s4) # car width
-	add $t4, $t3, $s7 # right x coordinate of car (car_x2)
-	addi $t4, $t4, 256
-	rem $t4, $t4, 256
-_car_2_1_left:
-	# check left
-	bgt $t3, $t0, _check_collisions_car_done # car_x1 > frog_x1
-	bgt $t0, $t4, _check_collisions_car_done # frog_x1 > car_x2
-	# car_x1 <= frog_x1 <= car_x2
-	j _has_collision_with_car
-_car_2_1_right:
-	# check right
-	bgt $t3, $t1, _car_3_3 # car_x1 > frog_x2
-	bgt $t1, $t4, _car_3_3 # frog_x2 > car_x2
-	# car_x1 <= frog_x2 <= car_x2
-	j _has_collision_with_car
-_has_collision_with_car:
-	lw $v0, starting_frog_x
-	lw $v1, starting_frog_y
-	sw $v0, frog_x
-	sw $v1, frog_y
-	# clear region at current position
-	sll $a0, $t2, 8 # multiply by 256
-	add $a0, $a0, $t0 # add frog_x
-	li $a1, 16 # width
-	li $a2, 16 # height
-	li $a3, 0x000000 # colour
-	move $s0, $ra
-	jal draw_rect
-	move $ra, $s0
-	# decrease nummber of lives
-	lw $v0, num_lives
-	addi $v0, $v0, -1
-	sw $v0, num_lives
-	
-	# play sound
-	li $v0, 31  
-	li $a0, 50
-	li $a1, 100
-	li $a2, 81
-	li $a3, 50
-	syscall 
-	
-	j _check_collisions_car_done
-_check_collisions_car_done:
-	jr $ra
-	
+
 fill_between:
 	# args: start_idx, end_idx, colour
 	sll $t0, $a0, 2 # multiply by 4
@@ -7406,7 +7187,273 @@ draw_sprite_turtle_1:
 	sw $t1, 0x1414($t0) # draw pixel
 	jr $ra
 	
-
+draw_sprite_goal_region:
+	sll $a0, $a0, 2  # multiply $a0 by 4
+	sll $a1, $a1, 10 # multiply $a1 by 4 * 256
+	add $t0, $a0, $a1
+	add $t0, $t0, 0x10008000
+	li $t1, 0x000047 # store colour code for 0x000047
+	sw $t1, 0x183c($t0) # draw pixel
+	sw $t1, 0x1c($t0) # draw pixel
+	sw $t1, 0x24($t0) # draw pixel
+	sw $t1, 0x3800($t0) # draw pixel
+	sw $t1, 0x1400($t0) # draw pixel
+	sw $t1, 0x1430($t0) # draw pixel
+	sw $t1, 0x28($t0) # draw pixel
+	sw $t1, 0x400($t0) # draw pixel
+	sw $t1, 0x383c($t0) # draw pixel
+	sw $t1, 0xc00($t0) # draw pixel
+	sw $t1, 0x3400($t0) # draw pixel
+	sw $t1, 0x3838($t0) # draw pixel
+	sw $t1, 0x18($t0) # draw pixel
+	sw $t1, 0x3820($t0) # draw pixel
+	sw $t1, 0x2c00($t0) # draw pixel
+	sw $t1, 0x40c($t0) # draw pixel
+	sw $t1, 0x1038($t0) # draw pixel
+	sw $t1, 0x43c($t0) # draw pixel
+	sw $t1, 0x1808($t0) # draw pixel
+	sw $t1, 0x3c24($t0) # draw pixel
+	sw $t1, 0x1438($t0) # draw pixel
+	sw $t1, 0x3c00($t0) # draw pixel
+	sw $t1, 0x1c0c($t0) # draw pixel
+	sw $t1, 0x430($t0) # draw pixel
+	sw $t1, 0x41c($t0) # draw pixel
+	sw $t1, 0x3000($t0) # draw pixel
+	sw $t1, 0x343c($t0) # draw pixel
+	sw $t1, 0xc08($t0) # draw pixel
+	sw $t1, 0x1034($t0) # draw pixel
+	sw $t1, 0x4($t0) # draw pixel
+	sw $t1, 0x404($t0) # draw pixel
+	sw $t1, 0x3c2c($t0) # draw pixel
+	sw $t1, 0x103c($t0) # draw pixel
+	sw $t1, 0x804($t0) # draw pixel
+	sw $t1, 0x3c10($t0) # draw pixel
+	sw $t1, 0x38($t0) # draw pixel
+	sw $t1, 0x800($t0) # draw pixel
+	sw $t1, 0x3c20($t0) # draw pixel
+	sw $t1, 0x1c30($t0) # draw pixel
+	sw $t1, 0x3c18($t0) # draw pixel
+	sw $t1, 0x1434($t0) # draw pixel
+	sw $t1, 0x1404($t0) # draw pixel
+	sw $t1, 0x1008($t0) # draw pixel
+	sw $t1, 0x3404($t0) # draw pixel
+	sw $t1, 0x1834($t0) # draw pixel
+	sw $t1, 0x0($t0) # draw pixel
+	sw $t1, 0x3c($t0) # draw pixel
+	sw $t1, 0x3c3c($t0) # draw pixel
+	sw $t1, 0x143c($t0) # draw pixel
+	sw $t1, 0x42c($t0) # draw pixel
+	sw $t1, 0x381c($t0) # draw pixel
+	sw $t1, 0x420($t0) # draw pixel
+	sw $t1, 0x3c1c($t0) # draw pixel
+	sw $t1, 0x410($t0) # draw pixel
+	sw $t1, 0x3434($t0) # draw pixel
+	sw $t1, 0x140c($t0) # draw pixel
+	sw $t1, 0x1030($t0) # draw pixel
+	sw $t1, 0x3438($t0) # draw pixel
+	sw $t1, 0x1010($t0) # draw pixel
+	sw $t1, 0xc34($t0) # draw pixel
+	sw $t1, 0xc04($t0) # draw pixel
+	sw $t1, 0x83c($t0) # draw pixel
+	sw $t1, 0x1004($t0) # draw pixel
+	sw $t1, 0xc38($t0) # draw pixel
+	sw $t1, 0x3804($t0) # draw pixel
+	sw $t1, 0x34($t0) # draw pixel
+	sw $t1, 0x20($t0) # draw pixel
+	sw $t1, 0x303c($t0) # draw pixel
+	sw $t1, 0x3818($t0) # draw pixel
+	sw $t1, 0x1800($t0) # draw pixel
+	sw $t1, 0x14($t0) # draw pixel
+	sw $t1, 0x180c($t0) # draw pixel
+	sw $t1, 0x1830($t0) # draw pixel
+	sw $t1, 0x838($t0) # draw pixel
+	sw $t1, 0x424($t0) # draw pixel
+	sw $t1, 0x100c($t0) # draw pixel
+	sw $t1, 0x418($t0) # draw pixel
+	sw $t1, 0x2c3c($t0) # draw pixel
+	sw $t1, 0x3408($t0) # draw pixel
+	sw $t1, 0x438($t0) # draw pixel
+	sw $t1, 0x1408($t0) # draw pixel
+	sw $t1, 0x3824($t0) # draw pixel
+	sw $t1, 0xc3c($t0) # draw pixel
+	sw $t1, 0x1000($t0) # draw pixel
+	sw $t1, 0x102c($t0) # draw pixel
+	sw $t1, 0x8($t0) # draw pixel
+	li $t1, 0x21de00 # store colour code for 0x21de00
+	sw $t1, 0x1420($t0) # draw pixel
+	sw $t1, 0x2c04($t0) # draw pixel
+	sw $t1, 0x342c($t0) # draw pixel
+	sw $t1, 0x428($t0) # draw pixel
+	sw $t1, 0x200c($t0) # draw pixel
+	sw $t1, 0x282c($t0) # draw pixel
+	sw $t1, 0x3828($t0) # draw pixel
+	sw $t1, 0x3414($t0) # draw pixel
+	sw $t1, 0x2834($t0) # draw pixel
+	sw $t1, 0x2438($t0) # draw pixel
+	sw $t1, 0x2804($t0) # draw pixel
+	sw $t1, 0x280c($t0) # draw pixel
+	sw $t1, 0x2404($t0) # draw pixel
+	sw $t1, 0x1c04($t0) # draw pixel
+	sw $t1, 0x1020($t0) # draw pixel
+	sw $t1, 0x2c0c($t0) # draw pixel
+	sw $t1, 0x2c2c($t0) # draw pixel
+	sw $t1, 0x2020($t0) # draw pixel
+	sw $t1, 0x1410($t0) # draw pixel
+	sw $t1, 0x203c($t0) # draw pixel
+	sw $t1, 0x340c($t0) # draw pixel
+	sw $t1, 0x1c00($t0) # draw pixel
+	sw $t1, 0x3038($t0) # draw pixel
+	sw $t1, 0x101c($t0) # draw pixel
+	sw $t1, 0x1c1c($t0) # draw pixel
+	sw $t1, 0x2030($t0) # draw pixel
+	sw $t1, 0x1c20($t0) # draw pixel
+	sw $t1, 0x2018($t0) # draw pixel
+	sw $t1, 0x834($t0) # draw pixel
+	sw $t1, 0xc0c($t0) # draw pixel
+	sw $t1, 0x1428($t0) # draw pixel
+	sw $t1, 0x1814($t0) # draw pixel
+	sw $t1, 0x81c($t0) # draw pixel
+	sw $t1, 0x3834($t0) # draw pixel
+	sw $t1, 0x3810($t0) # draw pixel
+	sw $t1, 0x300c($t0) # draw pixel
+	sw $t1, 0x3808($t0) # draw pixel
+	sw $t1, 0x2000($t0) # draw pixel
+	sw $t1, 0x1018($t0) # draw pixel
+	sw $t1, 0x1028($t0) # draw pixel
+	sw $t1, 0x380c($t0) # draw pixel
+	sw $t1, 0x2418($t0) # draw pixel
+	sw $t1, 0x1824($t0) # draw pixel
+	sw $t1, 0x3c28($t0) # draw pixel
+	sw $t1, 0x2808($t0) # draw pixel
+	sw $t1, 0xc24($t0) # draw pixel
+	sw $t1, 0x3030($t0) # draw pixel
+	sw $t1, 0x2420($t0) # draw pixel
+	sw $t1, 0x824($t0) # draw pixel
+	sw $t1, 0x818($t0) # draw pixel
+	sw $t1, 0xc20($t0) # draw pixel
+	sw $t1, 0x1c24($t0) # draw pixel
+	sw $t1, 0x2830($t0) # draw pixel
+	sw $t1, 0xc30($t0) # draw pixel
+	sw $t1, 0x2424($t0) # draw pixel
+	sw $t1, 0x2c10($t0) # draw pixel
+	sw $t1, 0x2008($t0) # draw pixel
+	sw $t1, 0x1810($t0) # draw pixel
+	sw $t1, 0x3c0c($t0) # draw pixel
+	sw $t1, 0x30($t0) # draw pixel
+	sw $t1, 0x2014($t0) # draw pixel
+	sw $t1, 0x2004($t0) # draw pixel
+	sw $t1, 0x1838($t0) # draw pixel
+	sw $t1, 0x2800($t0) # draw pixel
+	sw $t1, 0x814($t0) # draw pixel
+	sw $t1, 0x408($t0) # draw pixel
+	sw $t1, 0x2028($t0) # draw pixel
+	sw $t1, 0x1014($t0) # draw pixel
+	sw $t1, 0x302c($t0) # draw pixel
+	sw $t1, 0x3c08($t0) # draw pixel
+	sw $t1, 0x1c38($t0) # draw pixel
+	sw $t1, 0x1c14($t0) # draw pixel
+	sw $t1, 0xc($t0) # draw pixel
+	sw $t1, 0xc18($t0) # draw pixel
+	sw $t1, 0x1c3c($t0) # draw pixel
+	sw $t1, 0xc14($t0) # draw pixel
+	sw $t1, 0x434($t0) # draw pixel
+	sw $t1, 0x1818($t0) # draw pixel
+	sw $t1, 0xc10($t0) # draw pixel
+	sw $t1, 0x2434($t0) # draw pixel
+	sw $t1, 0x3814($t0) # draw pixel
+	sw $t1, 0x3430($t0) # draw pixel
+	sw $t1, 0x382c($t0) # draw pixel
+	sw $t1, 0x1c28($t0) # draw pixel
+	sw $t1, 0x1024($t0) # draw pixel
+	sw $t1, 0x3c38($t0) # draw pixel
+	sw $t1, 0x1c08($t0) # draw pixel
+	sw $t1, 0x240c($t0) # draw pixel
+	sw $t1, 0x1414($t0) # draw pixel
+	sw $t1, 0x182c($t0) # draw pixel
+	sw $t1, 0x2c30($t0) # draw pixel
+	sw $t1, 0x10($t0) # draw pixel
+	sw $t1, 0x808($t0) # draw pixel
+	sw $t1, 0x3830($t0) # draw pixel
+	sw $t1, 0x2838($t0) # draw pixel
+	sw $t1, 0xc1c($t0) # draw pixel
+	sw $t1, 0x241c($t0) # draw pixel
+	sw $t1, 0x1c34($t0) # draw pixel
+	sw $t1, 0x201c($t0) # draw pixel
+	sw $t1, 0x828($t0) # draw pixel
+	sw $t1, 0x820($t0) # draw pixel
+	sw $t1, 0x142c($t0) # draw pixel
+	sw $t1, 0x2408($t0) # draw pixel
+	sw $t1, 0x2038($t0) # draw pixel
+	sw $t1, 0x2034($t0) # draw pixel
+	sw $t1, 0x2400($t0) # draw pixel
+	sw $t1, 0x3410($t0) # draw pixel
+	sw $t1, 0x414($t0) # draw pixel
+	sw $t1, 0x3c30($t0) # draw pixel
+	sw $t1, 0x3008($t0) # draw pixel
+	sw $t1, 0x2c34($t0) # draw pixel
+	sw $t1, 0x1c18($t0) # draw pixel
+	sw $t1, 0x2c38($t0) # draw pixel
+	sw $t1, 0x1828($t0) # draw pixel
+	sw $t1, 0x3010($t0) # draw pixel
+	sw $t1, 0x3428($t0) # draw pixel
+	sw $t1, 0xc28($t0) # draw pixel
+	sw $t1, 0x3c34($t0) # draw pixel
+	sw $t1, 0x3c14($t0) # draw pixel
+	sw $t1, 0x243c($t0) # draw pixel
+	sw $t1, 0x2024($t0) # draw pixel
+	sw $t1, 0x2430($t0) # draw pixel
+	sw $t1, 0x2c($t0) # draw pixel
+	sw $t1, 0x3004($t0) # draw pixel
+	sw $t1, 0x2810($t0) # draw pixel
+	sw $t1, 0x2c08($t0) # draw pixel
+	sw $t1, 0x1804($t0) # draw pixel
+	sw $t1, 0x283c($t0) # draw pixel
+	sw $t1, 0x3c04($t0) # draw pixel
+	sw $t1, 0xc2c($t0) # draw pixel
+	sw $t1, 0x3034($t0) # draw pixel
+	sw $t1, 0x141c($t0) # draw pixel
+	li $t1, 0xff4700 # store colour code for 0xff4700
+	sw $t1, 0x181c($t0) # draw pixel
+	sw $t1, 0x1820($t0) # draw pixel
+	sw $t1, 0x301c($t0) # draw pixel
+	sw $t1, 0x810($t0) # draw pixel
+	sw $t1, 0x2c20($t0) # draw pixel
+	sw $t1, 0x3020($t0) # draw pixel
+	sw $t1, 0x80c($t0) # draw pixel
+	sw $t1, 0x1424($t0) # draw pixel
+	sw $t1, 0x1418($t0) # draw pixel
+	sw $t1, 0x2c1c($t0) # draw pixel
+	sw $t1, 0x2c18($t0) # draw pixel
+	sw $t1, 0x82c($t0) # draw pixel
+	sw $t1, 0x830($t0) # draw pixel
+	sw $t1, 0x3018($t0) # draw pixel
+	li $t1, 0x00def7 # store colour code for 0x00def7
+	sw $t1, 0x2828($t0) # draw pixel
+	sw $t1, 0x3424($t0) # draw pixel
+	sw $t1, 0x2824($t0) # draw pixel
+	sw $t1, 0x1c2c($t0) # draw pixel
+	sw $t1, 0x2428($t0) # draw pixel
+	sw $t1, 0x242c($t0) # draw pixel
+	sw $t1, 0x2c28($t0) # draw pixel
+	sw $t1, 0x2c24($t0) # draw pixel
+	sw $t1, 0x3024($t0) # draw pixel
+	sw $t1, 0x2814($t0) # draw pixel
+	sw $t1, 0x2414($t0) # draw pixel
+	sw $t1, 0x3028($t0) # draw pixel
+	sw $t1, 0x3420($t0) # draw pixel
+	sw $t1, 0x341c($t0) # draw pixel
+	sw $t1, 0x2c14($t0) # draw pixel
+	sw $t1, 0x3418($t0) # draw pixel
+	sw $t1, 0x2820($t0) # draw pixel
+	sw $t1, 0x2010($t0) # draw pixel
+	sw $t1, 0x1c10($t0) # draw pixel
+	sw $t1, 0x202c($t0) # draw pixel
+	sw $t1, 0x3014($t0) # draw pixel
+	sw $t1, 0x2818($t0) # draw pixel
+	sw $t1, 0x2410($t0) # draw pixel
+	sw $t1, 0x281c($t0) # draw pixel
+	jr $ra
+	
 play_midi_alfonsos_disappointment:
 	li $v0, 31
 	li $a0, 60
